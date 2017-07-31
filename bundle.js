@@ -17243,6 +17243,7 @@ function fetchData() { // TODO: fromTime, toTime, page Url
   .then((resp) => resp.json())
   .then(function(data) {
     renderChart(data);
+    renderAdditionalInfo(data);
   })
   .catch(function(error) {
     console.log(JSON.stringify(error));
@@ -17330,6 +17331,18 @@ function renderChart(data) {
             }]
           }
       }
+  });
+}
+
+function renderAdditionalInfo(data) {
+  var listEl = document.querySelector('.additionalDataList');
+  data.forEach((record) => {
+    var item = document.createElement("li");
+    item.innerHTML = moment(record.timestamp).format('MM/DD/YYYY HH:mm A');
+    item.innerHTML += ` <a href="${record.summary}">Test Result</a>`;
+    item.innerHTML += ` <a href="${record.firstView.waterfallView}">Waterfall</a>`;
+    item.innerHTML += ` <a href="${record.firstView.connectionView}">Connections</a>`;
+    listEl.appendChild(item);
   });
 }
 
