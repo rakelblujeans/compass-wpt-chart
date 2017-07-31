@@ -17237,7 +17237,7 @@ var timeFormat = 'MM/DD/YYYY HH:mm';
 //   return moment().add(days, 'd').unix();
 // }
 
-function fetchData() { // TODO: fromTime, toTime
+function fetchData() { // TODO: fromTime, toTime, page Url
   const url = `http://compass-wpt.herokuapp.com/charts`;
   fetch(url)
   .then((resp) => resp.json())
@@ -17299,7 +17299,7 @@ function renderChart(data) {
           responsive: true,
           title:{
             display: true,
-            text: 'Compass - WebPageTest Stats'
+            text: 'Compass /search/sales/nyc/ - WebPageTest Stats'
           },
           tooltips: {
             mode: 'index',
