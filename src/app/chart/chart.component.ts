@@ -1,4 +1,4 @@
-import { ActivatedRoute, Params } from '@angular/router';
+import { ActivatedRoute, Params, Router } from '@angular/router';
 import {
   Component,
   OnChanges,
@@ -20,7 +20,9 @@ export class ChartComponent implements OnInit, OnDestroy {
   @ViewChild( BaseChartDirective ) chart: BaseChartDirective;
   fromDate: string;
   toDate: string;
-  title: string;
+  // Prevent the UI from triggering additional requests for data
+  disableUiUpdates: boolean;
+  label: string;
   dateFormat: string;
   timeFormat: string;
   chartOptions: Object;
@@ -30,8 +32,7 @@ export class ChartComponent implements OnInit, OnDestroy {
   data: Array<Object>;
   paramSubscription: any;
 
-  constructor(private activatedRoute: ActivatedRoute) {
-    this.title = 'app';
+  constructor(private activatedRoute: ActivatedRoute, private router: Router) {
     this.timeFormat = 'MM/DD/YYYY HH:mm';
     this.datePickerConfig = {
       allowMultiSelect: false,
@@ -39,12 +40,49 @@ export class ChartComponent implements OnInit, OnDestroy {
     };
   }
 
+  ngOnInit() {
+    // Subscribe to router event
+    this.paramSubscription = this.activatedRoute.queryParams.subscribe((params: Params) => {
+      this.disableUiUpdates = true;
+
+      console.log(params);
+
+      // Assume timestamps are specified as UTC millis in the URL.
+      // I'm not overly concerned with timezones right now.
+      let toDate;
+      let fromDate;
+      if (params.to && !params.from) {
+        toDate = moment.utc(parseInt(params.to, 10));
+        fromDate = moment.utc(parseInt(params.to, 10)).subtract(1, 'month');
+      } else if (!params.to && params.from) {
+        fromDate = moment.utc(parseInt(params.from, 10));
+        toDate = moment.utc(parseInt(params.from, 10)).add(1, 'month');
+      } else if (!params.to && !params.from) {
+        toDate = moment.utc();
+        fromDate = moment.utc().subtract(1, 'month');
+      } else {
+        fromDate = moment.utc(parseInt(params.from, 10));
+        toDate = moment.utc(parseInt(params.to, 10));
+      }
+      this.fromDate =  fromDate.format(this.timeFormat);
+      this.toDate =  toDate.format(this.timeFormat);
+
+      this.chartOptions = this._buildChartOptions(params.label);
+      this._initializeChart(params.label, fromDate, toDate);
+    });
+  }
+
+  ngOnDestroy() {
+    this.paramSubscription.unsubscribe();
+  }
+
   _buildChartOptions(label) {
+    this.label = label;
     return {
       responsive: true,
       title: {
         display: true,
-        text: label,
+        text: this.label,
       },
       tooltips: {
         mode: 'index',
@@ -77,45 +115,23 @@ export class ChartComponent implements OnInit, OnDestroy {
     };
   }
 
-  ngOnInit() {
-    // subscribe to router event
-    this.paramSubscription = this.activatedRoute.queryParams.subscribe((params: Params) => {
-      console.log(params.label);
-      this.chartOptions = this._buildChartOptions(params.label);
-      this.initializeChart(params.label);
-    });
-  }
-
-  ngOnDestroy() {
-    this.paramSubscription.unsubscribe();
-  }
-
-  initializeChart(label) {
-    const url = `http://compass-wpt.herokuapp.com/charts?label=${label}`;
+  _initializeChart(label, fromDate, toDate) {
+    this.disableUiUpdates = true;
+    const url = `http://compass-wpt.herokuapp.com/charts?label=${label}&from=${fromDate}&to=${toDate}`;
     fetch(url)
     .then((resp): Promise<Array<Object>> => resp.json())
     .then((data: Array<Object>) => {
       this.data = data;
       this.dates = this.getDates(data);
-
-      // The endpoint sends data back sorted according to timestamp
+      // Note: the endpoint returns data sorted according to timestamp
       if (this.dates && this.dates.length) {
-        // Defaults to showing data for the last month
-        this.toDate = this.dates[this.dates.length - 1] as string;
-        this.fromDate = moment(this.toDate, this.timeFormat).subtract(1, 'month')
-            .format(this.timeFormat);
         this.chartData = this.buildDataSet(data);
       }
+      this.disableUiUpdates = false;
     })
     .catch(function(error) {
       console.log(JSON.stringify(error));
     });
-  }
-
-  refreshChart() {
-    this.dates = this.getDates(this.data);
-    this.chartData = this.buildDataSet(this.data);
-    this.chart.ngOnChanges({});
   }
 
   buildDataSet(data: Array<Object>): Array<Object> {
@@ -142,35 +158,12 @@ export class ChartComponent implements OnInit, OnDestroy {
     }];
   }
 
-  filterByDates(data: Array<Object>): Array<Object> {
-    if (!this.fromDate && !this.toDate) {
-      return data;
-    }
-
-    const minDate = this.fromDate && moment.utc(this.fromDate, this.timeFormat);
-    const maxDate = this.toDate && moment.utc(this.toDate, this.timeFormat).add(1, 'day');
-    return data.filter((record: any) => {
-      const timestamp = moment.utc(record.timestamp);
-      // Make sure to include data from the current day
-      if (minDate && timestamp.isBefore(minDate)) {
-        return false;
-      }
-      if (maxDate && timestamp.isAfter(maxDate)) {
-        return false;
-      }
-
-      return true;
-    });
-  }
-
   getField(data: Array<Object>, fieldName: string): any {
-    const filteredData = this.filterByDates(data);
-    return filteredData.map((record: any) => record.firstView[fieldName]);
+    return data.map((record: any) => record.firstView[fieldName]);
   }
 
   getDates(data: Array<Object>): Array<string> {
-    const filteredData = this.filterByDates(data);
-    return filteredData.map((record: any) => moment.utc(record.timestamp).format(this.timeFormat));
+    return data.map((record: any) => moment.utc(record.timestamp).format(this.timeFormat));
   }
 
   formatDate(timestamp: string): string {
@@ -178,16 +171,38 @@ export class ChartComponent implements OnInit, OnDestroy {
   }
 
   onFromDateChange(event: any) {
-    if (event !== this.fromDate) {
-      this.fromDate = event ? moment.utc(event, this.timeFormat).format(this.timeFormat) : null;
-      this.refreshChart();
+    if (event && event !== this.fromDate && !this.disableUiUpdates) {
+      this.disableUiUpdates = true;
+      const from = moment.utc(event, this.timeFormat);
+      const to = moment.utc(event, this.timeFormat).add(1, 'month');
+      this.fromDate = from.format(this.timeFormat);
+      this.toDate = to.format(this.timeFormat);
+
+      this.router.navigate(['chart'], {
+        queryParams: {
+          label: this.label,
+          from: from.valueOf(),
+          to: to.valueOf()
+        }
+      });
     }
   }
 
   onToDateChange(event) {
-    if (event !== this.toDate) {
-      this.toDate = event ? moment.utc(event, this.timeFormat).format(this.timeFormat) : null;
-      this.refreshChart();
+    if (event && event !== this.toDate && !this.disableUiUpdates) {
+      this.disableUiUpdates = true;
+      const to = moment.utc(event, this.timeFormat);
+      const from = moment.utc(event, this.timeFormat).subtract(1, 'month');
+      this.toDate = to.format(this.timeFormat);
+      this.fromDate = from.format(this.timeFormat);
+
+      this.router.navigate(['chart'], {
+        queryParams: {
+          label: this.label,
+          from: from.valueOf(),
+          to: to.valueOf()
+        }
+      });
     }
   }
 }

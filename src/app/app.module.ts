@@ -11,7 +11,8 @@ import { AppComponent } from './app.component';
 import { ChartComponent } from './chart/chart.component';
 
 const appRoutes: Routes = [
-  { path: '', component: ChartComponent },
+  { path: '', redirectTo: 'chart', pathMatch: 'full' },
+  { path: 'chart', component: ChartComponent },
 ];
 
 @NgModule({
