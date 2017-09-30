@@ -1,0 +1,47 @@
+<div class="main-title">
+  <h1>
+    Compass WebPageTest Results
+  </h1>
+</div>
+
+<div class="actions-bar">
+  <div class="date-picker">
+    <label>From:</label>
+    <dp-date-picker
+        [ngModel]="fromDate"
+        (ngModelChange)="onFromDateChange($event)"
+        [placeholder]="'Choose...'"
+        [config]="datePickerConfig">
+    </dp-date-picker>
+  </div>
+
+  <div class="date-picker">
+    <label>To:</label>
+    <dp-date-picker
+        [ngModel]="toDate"
+        (ngModelChange)="onToDateChange($event)"
+        [placeholder]="'Choose...'"
+        [config]="datePickerConfig">
+    </dp-date-picker>
+  </div>
+</div>
+
+<div class="wpt-chart">
+  <canvas *ngIf="chartData"
+      baseChart
+      [chartType]="'line'"
+      [datasets]="chartData"
+      [labels]="dates"
+      [options]="chartOptions"
+      [legend]="true">
+  </canvas>
+</div>
+
+<ul class="wpt-resultsList">
+  <li *ngFor="let record of data">
+    <span>{{formatDate(record.timestamp)}}</span>
+    <a [href]="record.summary">Test Result</a>
+    <a [href]="record.firstView.waterfallView">Waterfall</a>
+    <a [href]="record.firstView.connectionView">Connections</a>
+  </li>
+</ul>
