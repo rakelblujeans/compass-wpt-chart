@@ -1,5 +1,6 @@
 import { ActivatedRoute, Params, Router } from '@angular/router';
 import {
+  ChangeDetectorRef,
   Component,
   OnChanges,
   OnDestroy,
@@ -32,7 +33,11 @@ export class ChartComponent implements OnInit, OnDestroy {
   data: Array<Object>;
   paramSubscription: any;
 
-  constructor(private activatedRoute: ActivatedRoute, private router: Router) {
+  constructor(
+      private activatedRoute: ActivatedRoute,
+      private changeDetectorRef: ChangeDetectorRef,
+      private router: Router
+  ) {
     this.timeFormat = 'MM/DD/YYYY HH:mm';
     this.datePickerConfig = {
       allowMultiSelect: false,
@@ -43,8 +48,6 @@ export class ChartComponent implements OnInit, OnDestroy {
   ngOnInit() {
     // Subscribe to router event
     this.paramSubscription = this.activatedRoute.queryParams.subscribe((params: Params) => {
-      this.disableUiUpdates = true;
-
       console.log(params);
 
       // Assume timestamps are specified as UTC millis in the URL.
@@ -128,9 +131,13 @@ export class ChartComponent implements OnInit, OnDestroy {
         this.chartData = this.buildDataSet(data);
       }
       this.disableUiUpdates = false;
+      this.changeDetectorRef.detectChanges();
+      this.chart && this.chart.ngOnChanges({});
+      this.changeDetectorRef.detectChanges();
     })
-    .catch(function(error) {
-      console.log(JSON.stringify(error));
+    .catch((error) => {
+      console.log('ERROR', JSON.stringify(error));
+      this.disableUiUpdates = false;
     });
   }
 
